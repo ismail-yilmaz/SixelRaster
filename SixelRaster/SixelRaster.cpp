@@ -9,36 +9,36 @@ class SixelRaster::Data : NoCopy {
 public:
     Data(Stream& sdata);
 
-	Data&			Background(RGBA c)				{ paper = c; return *this;  }
-	Data&			NoHole(bool b = true)			{ nohole = b; return *this; }
-	
+    Data&           Background(RGBA c)              { paper = c; return *this;  }
+    Data&           NoHole(bool b = true)           { nohole = b; return *this; }
+    
     Image           Get();
     operator        Image()                         { return Get(); }
     Size            GetSize() const                 { return size;  }
     int             GetRatio() const                { return 1; }
     
 private:
-	void			CheckHeader();
+    void            CheckHeader();
     void            Clear();
     inline void     Return();
     inline void     LineFeed();
     void            SetPalette();
     void            GetRasterInfo();
     void            GetRepeatCount();
-    int				ReadParams();
-    void			CalcYOffests();
+    int             ReadParams();
+    void            CalcYOffests();
     void            AdjustBufferSize();
     void            PaintSixel(int c);
 
 private:
     Stream&         stream;
-    ImageBuffer		buffer;
+    ImageBuffer     buffer;
     Vector<RGBA>    palette;
     RGBA            ink;
-    RGBA			paper;
+    RGBA            paper;
     int             repeat;
-    int				params[8];
-    int				coords[6];
+    int             params[8];
+    int             coords[6];
     Size            size;
     Point           cursor;
     bool            nohole;
@@ -73,7 +73,7 @@ void SixelRaster::Data::Clear()
 	};
 
 	size    = Size(0, 0);
-	cursor  = Point(0, 0);
+	cursor  = Point(0, 1);
 	repeat  = 0;
 	ink     = palette[0];
 	ink.a   = 0xff;
@@ -90,7 +90,7 @@ void SixelRaster::Data::Clear()
 force_inline
 int SixelRaster::Data::ReadParams()
 {
-	LTIMING("Data::ReadParams");
+	LTIMING("SixelRaster::Data::ReadParams");
 	
 	Zero(params);
 	int c = 0, n = 0, i = 0;
@@ -165,7 +165,7 @@ static Color sHSLColor(int h, int s, int l)
 force_inline
 void SixelRaster::Data::SetPalette()
 {
-	LTIMING("Data::SetPalette");
+	LTIMING("SixelRaster::Data::SetPalette");
 	
 	int n = ReadParams();
 	if(n == 5) {
@@ -198,14 +198,14 @@ void SixelRaster::Data::SetPalette()
 force_inline
 void SixelRaster::Data::GetRasterInfo()
 {
-	LTIMING("Data::GetRasterInfo");
+	LTIMING("SixelRaster::Data::GetRasterInfo");
 	(void) ReadParams(); // We don't use the raster info.
 }
 
 force_inline
 void SixelRaster::Data::GetRepeatCount()
 {
-	LTIMING("Data::GetRepeatCount");
+	LTIMING("SixelRaster::Data::GetRepeatCount");
 
 	(void) ReadParams();
 	repeat += max(1, params[0]); // Repeat compression.
@@ -224,7 +224,7 @@ void SixelRaster::Data::AdjustBufferSize()
 force_inline
 void SixelRaster::Data::PaintSixel(int c)
 {
-	LTIMING("Data::PaintSixel");
+	LTIMING("SixelRaster::Data::PaintSixel");
 	
 	Size sz = buffer.GetSize();
 	if((sz.cx < cursor.x + repeat) || (sz.cy < cursor.y))
@@ -269,7 +269,7 @@ Image SixelRaster::Data::Get()
 {
 	Clear();
 
-	LTIMING("Data::Get");
+	LTIMING("SixelRaster::Data::Get");
 		
 	try {
 		CheckHeader();
@@ -295,10 +295,13 @@ Image SixelRaster::Data::Get()
 			case 0x1A:
 			case 0x1B:
 			case 0x1C:
-			case -1: // eof or err
 				goto Finalize;
+			case 0x7F:
+				if(stream.IsEof())
+					goto Finalize;
+				break;
 			default:
-				if(c > 0x3E && c < 0x7F)
+				if(c > 0x3E)
 					PaintSixel(c - 0x3F);
 				break;
 			}
@@ -309,7 +312,7 @@ Image SixelRaster::Data::Get()
 	}
 	
 Finalize:
-	return !stream.IsError() ? Crop(buffer, size) : Image();
+	return !stream.IsError() ? Crop(buffer, 0, 1, size.cx, size.cy) : Image();
 }
 
 bool SixelRaster::Create()
