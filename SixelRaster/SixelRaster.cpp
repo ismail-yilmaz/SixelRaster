@@ -8,14 +8,7 @@ namespace Upp {
 class SixelRaster::Data : NoCopy {
 public:
     Data(Stream& sdata);
-
-    Data&           Background(RGBA c)              { paper = c; return *this;  }
-    Data&           NoHole(bool b = true)           { nohole = b; return *this; }
-    
-    Image           Get();
-    operator        Image()                         { return Get(); }
-    Size            GetSize() const                 { return size;  }
-    int             GetRatio() const                { return 1; }
+    operator        Image();
     
 private:
     void            CheckHeader();
@@ -41,13 +34,13 @@ private:
     int             coords[6];
     Size            size;
     Point           cursor;
-    bool            nohole;
+    bool            transparent;
 };
 
 
 SixelRaster::Data::Data(Stream& sixelstream)
 : stream(sixelstream)
-, nohole(true)
+, transparent(false)
 {
 }
 
@@ -82,7 +75,7 @@ void SixelRaster::Data::Clear()
 	Zero(params);
 	
 	buffer.Create(1024, 1024);
-	Fill(buffer, buffer.GetSize(), nohole ? paper : RGBAZero());
+	Fill(buffer, buffer.GetSize(),  transparent ? RGBAZero() : paper);
 	
 	CalcYOffests();
 }
@@ -258,14 +251,14 @@ void SixelRaster::Data::CheckHeader()
 				break;
 			}
 			if(n >= 2)
-				nohole = params[1] != 1;
+				transparent = params[1] == 1;
 			return;
 		}
 	}
 	throw Exc("SixelRaster: Invalid sixel stream");
 }
 
-Image SixelRaster::Data::Get()
+SixelRaster::Data::operator Image()
 {
 	Clear();
 
@@ -326,7 +319,7 @@ bool SixelRaster::Create()
 	}
 	ASSERT(stream.IsLoading());
 
-	img = Data(stream).Get();
+	img = (Image) Data(stream);
 
 	return !img.IsEmpty();
 }
